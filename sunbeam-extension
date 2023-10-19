@@ -101,7 +101,7 @@ if [ "$1" = "browse-resource-group" ]; then
 	STDIN=$(cat)
 	SUBSCRIPTION=$(echo "$STDIN" | sunbeam query -r ".params.subscription")
 	RESOURCEGROUP=$(echo "$STDIN" | sunbeam query -r ".params.resourceGroup")
-	az resource list --subscription $SUBSCRIPTION --resource-group $RESOURCEGROUP | sunbeam query --arg subscriptionId=$SUBSCRIPTION 'map({
+	az resource list --subscription $SUBSCRIPTION --resource-group $RESOURCEGROUP | sunbeam query 'map({
 		title: .name,
 		subtitle: .location,
 		accessories: [ .type ],
