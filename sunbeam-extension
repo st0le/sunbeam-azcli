@@ -1,0 +1,131 @@
+#!/bin/bash
+
+set -eu
+
+if [ $# -eq 0 ]; then
+	sunbeam query -n '{
+		title: "Az CLI",
+		commands: [
+			{
+				title: "List Subscriptions",
+				name: "list-subscriptions",
+				mode: "view"
+			},
+			{
+				title: "Browse Subscription",
+				name: "browse-subscription",
+				mode: "view",
+				params: [
+					{
+						name: "subscription",
+						type: "string",
+						required: true
+					}
+				]
+			},
+			{
+				title: "Browse Resource Group",
+				name: "browse-resource-group",
+				mode: "view",
+				params: [
+					{
+						name: "subscription",
+						type: "string",
+						required: true
+					},
+					{
+						name: "resourceGroup",
+						type: "string",
+						required: true
+					}
+				]
+			},
+			{
+				title: "View Resource",
+				name: "view-resource",
+				mode: "view",
+				params: [
+					{
+						name: "id",
+						type: "string",
+						required: true
+					}
+				]
+			}
+		]
+	}'
+	exit 0
+fi
+
+if [ "$1" = "list-subscriptions" ]; then
+	az account subscription list | sunbeam query 'map({
+		title: .displayName,
+		subtitle: .subscriptionId,
+		actions: [
+			{
+				title: "Browse Subscription",
+				onAction: {
+					type: "run",
+					command: "browse-subscription",
+					params: {
+						subscription: .subscriptionId
+					}
+				}
+			}
+		]
+	}) | {type: "list", items: .}'
+fi
+
+if [ "$1" = "browse-subscription" ]; then
+	SUBSCRIPTION=$(sunbeam query -r '.params.subscription')
+	az group list --subscription $SUBSCRIPTION | sunbeam query --arg subscriptionId=$SUBSCRIPTION 'map({
+		title: .name,
+		subtitle: .location,
+		actions: [
+			{
+				title: "Browse Resources",
+				onAction: {
+					type: "run",
+					command: "browse-resource-group",
+					params: {
+						subscription: $subscriptionId,
+						resourceGroup: .name
+					}
+				}
+			}
+		]
+	}) | {type: "list", items: .}'
+fi
+
+if [ "$1" = "browse-resource-group" ]; then
+	STDIN=$(cat)
+	SUBSCRIPTION=$(echo "$STDIN" | sunbeam query -r ".params.subscription")
+	RESOURCEGROUP=$(echo "$STDIN" | sunbeam query -r ".params.resourceGroup")
+	az resource list --subscription $SUBSCRIPTION --resource-group $RESOURCEGROUP | sunbeam query --arg subscriptionId=$SUBSCRIPTION 'map({
+		title: .name,
+		subtitle: .location,
+		accessories: [ .type ],
+		actions: [
+			{
+				title: "View Resources",
+				onAction: {
+					type: "run",
+					command: "view-resource",
+					params: {
+						id: .id
+					}
+				}
+			}
+		]
+	}) | {type: "list", items: .}'
+	
+fi
+
+if [ "$1" = "view-resource" ]; then
+	ID=$(sunbeam query -r '.params.id')
+	az resource show --id $ID  | sunbeam query '{
+		title: .name,
+		type: "detail",
+		markdown: (. | @json )
+	}'
+fi
